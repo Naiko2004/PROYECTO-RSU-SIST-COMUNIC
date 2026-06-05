@@ -10,8 +10,8 @@
 // ==========================================
 // PARÁMETROS DEL MÓDEM FSK
 // ==========================================
-#define BAUD_RATE    1200
-#define SAMPLE_RATE  9600 // Oversampling 8x (9600 Hz para 1200 bps)
+#define BAUD_RATE    600
+#define SAMPLE_RATE  19200 // Oversampling 8x (9600 Hz para 1200 bps)
 
 // Umbrales para cruce por cero en 9600 Hz
 // 1200 Hz (Mark)  = 8 muestras por ciclo (4 por semiciclo)

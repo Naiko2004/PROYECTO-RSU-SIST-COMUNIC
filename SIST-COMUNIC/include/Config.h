@@ -12,5 +12,5 @@
 // ==========================================
 #define FREQ_MARK    1200 // Frecuencia para el "1" lógico (Hz)
 #define FREQ_SPACE   2200 // Frecuencia para el "0" lógico (Hz)
-#define BAUD_RATE    1200 // Velocidad en bits por segundo
+#define BAUD_RATE    600 // Velocidad en bits por segundo
 #define SAMPLE_RATE  40000 // Frecuencia de muestreo del DDS (40 kHz)
