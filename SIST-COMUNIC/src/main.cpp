@@ -1,6 +1,6 @@
 #include <Arduino.h>
-#include "config.h"
-#include <modulator_fsk.h>
+#include "Config.h"
+#include <ModulatorFSK.h>
 
 // Instanciamos nuestro módem
 ModulatorFSK modem;
