@@ -34,5 +34,5 @@ void loop() {
     modem.sendPacket(payload, sizeof(payload));
 
     // Esperar 10 segundos antes de enviar otro
-    delay(10000);
+    delay(1000);
 }
