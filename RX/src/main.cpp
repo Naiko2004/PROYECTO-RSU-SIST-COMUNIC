@@ -149,7 +149,7 @@ void loop() {
         digitalWrite(LED_PIN, HIGH);
         
         // Imprime el byte puro que entra para debug
-        Serial.printf("%02X ", b); 
+        // Serial.printf("%02X ", b); 
 
         switch (rx_state) {
             
