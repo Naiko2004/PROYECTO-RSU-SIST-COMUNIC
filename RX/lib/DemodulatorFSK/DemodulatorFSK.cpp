@@ -65,17 +65,19 @@ void IRAM_ATTR DemodulatorFSK::onADCInterrupt() {
     }
 
     // 5. MÁQUINA DE ESTADOS UART (Oversampling 16x)
+    const int SAMPLES_PER_BIT = SAMPLE_RATE / BAUD_RATE; // Para 600bps será 32
+    const int HALF_SAMPLE_PER_BIT = SAMPLES_PER_BIT / 2; // Para 600bps será 16
     if (!receiving) {
         if (current_bit == 0) { // Bit de Start
             receiving = true;
-            sample_counter = 8; 
+            sample_counter = HALF_SAMPLE_PER_BIT; 
             bit_position = 0;
             current_byte = 0;
         }
     } else {
         sample_counter--;
         if (sample_counter == 0) {
-            sample_counter = 16; 
+            sample_counter = SAMPLES_PER_BIT; 
             
             if (bit_position == 0) {
                 if (current_bit != 0) receiving = false; 

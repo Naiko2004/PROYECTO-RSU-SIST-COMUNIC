@@ -93,21 +93,27 @@ void ModulatorFSK::sendPacket(const uint8_t *payload, size_t length) {
 
     uint64_t next_bit_time = esp_timer_get_time() + (1000000 / BAUD_RATE);
 
-    // Preámbulo
+    // Preámbulo (Tono Mark continuo para estabilizar AGC en el receptor)
     phase_increment = inc_mark;
     delay(50); 
     next_bit_time = esp_timer_get_time();
 
-    // Sincronismo
+    // Sincronismo (Wake-Up)
     transmitByte(0x55, next_bit_time);
     transmitByte(0x55, next_bit_time);
 
-    // Datos
+    // ==========================================
+    // NUEVOS BYTES DE LA MÁQUINA DE ESTADOS
+    // ==========================================
+    transmitByte(0x7E, next_bit_time);            // SOF (Start of Frame)
+    transmitByte(length - 2, next_bit_time);      // Longitud útil (descontando los 2 bytes de CRC)
+
+    // Datos + CRC (que ya vienen empaquetados en el buffer)
     for (size_t i = 0; i < length; i++) {
         transmitByte(payload[i], next_bit_time);
     }
 
-    // Fin
+    // Fin de transmisión
     phase_increment = 0; 
     delay(20); 
     digitalWrite(PTT_PIN, LOW); // Soltar PTT

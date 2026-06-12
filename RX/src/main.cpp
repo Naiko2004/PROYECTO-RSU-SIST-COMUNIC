@@ -28,17 +28,23 @@ uint16_t calculateCRC16(const uint8_t *data, uint16_t length) {
 enum RxState {
     WAIT_SYNC_1,
     WAIT_SYNC_2,
-    READ_HEADER,
+    WAIT_SOF,
+    WAIT_LENGTH,
     READ_PAYLOAD,
     READ_CRC
 };
 
 RxState rx_state = WAIT_SYNC_1;
 
-// Usamos UN SOLO buffer continuo para guardar toda la trama tal como llega
-uint8_t trama_completa[256]; 
+// Usamos un buffer de 64 bytes para el payload como indicaste
+const int MAX_PAYLOAD = 64;
+uint8_t trama_completa[MAX_PAYLOAD]; 
 int rx_index = 0;
 int expected_payload_length = 0;
+
+// Buffer temporal exclusivo para los 2 bytes del CRC
+uint8_t crc_buffer[2];
+int crc_index = 0;
 
 // ==========================================
 // FUNCIÓN AUXILIAR: Calcular tamaño del payload
@@ -79,7 +85,7 @@ void parsePacket() {
     Serial.printf("MÁSCARA: 0x%02X\n", current_mask);
     Serial.println("--- DATOS DE SENSORES ---");
 
-    // El Payload empieza recién en el índice 3 (después de ID, Tipo y Máscara)
+    // El Payload de sensores empieza en el índice 3
     int offset = 3; 
     
     if (current_mask & 0x01) {
@@ -134,63 +140,68 @@ void setup() {
     demod.begin();
     
     Serial.println("Central INA-CIRSA Inicializada");
-    Serial.println("Máquina de Estados lista. Escuchando canal VHF...");
+    Serial.println("Máquina de Estados Robusta lista. Escuchando canal VHF...");
 }
 
 void loop() {
     if (demod.available()) {
         uint8_t b = demod.read();
         digitalWrite(LED_PIN, HIGH);
-        Serial.printf("%02X ", b);
+        
+        // Imprime el byte puro que entra para debug
+        Serial.printf("%02X ", b); 
+
         switch (rx_state) {
+            
             case WAIT_SYNC_1:
-                
                 if (b == 0x55) rx_state = WAIT_SYNC_2;
                 break;
 
             case WAIT_SYNC_2:
-                if (b == 0x55) {
-                    rx_state = READ_HEADER;
-                    rx_index = 0; // Solo reiniciamos al detectar un nuevo paquete
+                if (b == 0x55) rx_state = WAIT_SOF;
+                else rx_state = WAIT_SYNC_1; 
+                break;
+
+            case WAIT_SOF:
+                if (b == 0x7E) {
+                    // ¡Encontramos el Start of Frame!
+                    rx_state = WAIT_LENGTH;
+                } else if (b == 0x55) {
+                    // Si hay ruido y entran tres "0x55" seguidos, no rompemos la máquina
+                    rx_state = WAIT_SOF; 
                 } else {
-                    rx_state = WAIT_SYNC_1; 
+                    rx_state = WAIT_SYNC_1;
                 }
                 break;
 
-            case READ_HEADER:
-                trama_completa[rx_index++] = b;
-                if (rx_index == 3) { 
-                    uint8_t mask = trama_completa[2];
-                    expected_payload_length = calculatePayloadSize(mask);
-                    
-                    if (expected_payload_length > 0) {
-                        rx_state = READ_PAYLOAD;
-                    } else {
-                        rx_state = READ_CRC; 
-                    }
+            case WAIT_LENGTH:
+                if (b > 0 && b <= MAX_PAYLOAD) {
+                    expected_payload_length = b;
+                    rx_index = 0; // Preparamos el buffer para los datos reales
+                    rx_state = READ_PAYLOAD;
+                } else {
+                    // Longitud inválida (ruido). Abortar.
+                    rx_state = WAIT_SYNC_1;
                 }
                 break;
 
             case READ_PAYLOAD:
                 trama_completa[rx_index++] = b;
-                // Esperamos hasta leer Cabecera (3 bytes) + Payload
-                if (rx_index == 3 + expected_payload_length) {
+                
+                // Si ya leímos la cantidad exacta de bytes declarados
+                if (rx_index == expected_payload_length) {
                     rx_state = READ_CRC;
+                    crc_index = 0; // Preparamos el buffer de CRC
                 }
                 break;
 
             case READ_CRC:
-                trama_completa[rx_index++] = b; 
+                crc_buffer[crc_index++] = b; 
                 
-                // Esperamos hasta leer Cabecera (3) + Payload + CRC (2)
-                if (rx_index == 3 + expected_payload_length + 2) {
-                    
-                    // Extraemos los 2 bytes finales que son el CRC que mandó la Estación
-                    uint16_t crc_recibido = (trama_completa[rx_index - 2] << 8) | trama_completa[rx_index - 1];
-                    
-                    // Calculamos localmente el CRC sobre todos los bytes anteriores (largo total sin los 2 de CRC)
-                    int largo_sin_crc = rx_index - 2;
-                    uint16_t crc_calculado = calculateCRC16(trama_completa, largo_sin_crc);
+                // Si ya recibimos los 2 bytes del CRC
+                if (crc_index == 2) {
+                    uint16_t crc_recibido = (crc_buffer[0] << 8) | crc_buffer[1];
+                    uint16_t crc_calculado = calculateCRC16(trama_completa, expected_payload_length);
                     
                     if (crc_recibido == crc_calculado) {
                         Serial.println("\n✅ CRC OK: Trama intacta.");
@@ -199,22 +210,19 @@ void loop() {
                         Serial.println("\n❌ ERROR: Trama corrupta (CRC Inválido). Descartada.");
                         Serial.printf("Esperado: 0x%04X | Recibido: 0x%04X\n", crc_calculado, crc_recibido);
                         
-                        // --- AGREGAR ESTO PARA DIAGNÓSTICO ---
                         Serial.print("🔍 BYTES CRUDOS RECIBIDOS: ");
-                        for(int i = 0; i < rx_index; i++) {
+                        for(int i = 0; i < expected_payload_length; i++) {
                             Serial.printf("%02X ", trama_completa[i]);
                         }
-                        Serial.println();
-                        // -------------------------------------
+                        Serial.printf("| CRC: %02X %02X\n", crc_buffer[0], crc_buffer[1]);
                     }
                     
-                    // Fin del paquete, volvemos a escuchar sincronismo para el siguiente
+                    // Fin del proceso, volvemos a buscar sincronismo para el próximo paquete
                     rx_state = WAIT_SYNC_1; 
                 }
                 break;
         }
 
-        // delay(2);
         digitalWrite(LED_PIN, LOW);
     }
 }

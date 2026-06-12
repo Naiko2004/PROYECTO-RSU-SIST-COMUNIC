@@ -10,7 +10,7 @@
 // ==========================================
 // PARÁMETROS DEL MÓDEM FSK
 // ==========================================
-#define BAUD_RATE    1200
+#define BAUD_RATE    600
 #define SAMPLE_RATE  19200 // Oversampling 8x (9600 Hz para 1200 bps)
 
 // Umbrales para cruce por cero en 9600 Hz
