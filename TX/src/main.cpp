@@ -35,9 +35,11 @@ void loop() {
     // ----------------------------------------------------
     // SIMULACIÓN DE LECTURA DE SENSORES
     // ----------------------------------------------------
-    float sensor_nivel = 4.50;      // 4.50 metros
-    float sensor_temp = 20.5;       // 20.5 °C
-    uint8_t sensor_humedad = 75;    // 75%
+    float sensor_nivel = (rand() % 1000) / 100.0;      // 4.50 metros
+    float sensor_temp = (rand () % 400) / 10.0;       // 20.5 °C
+    uint8_t sensor_humedad = random(0, 81);    // 75%
+    
+
 
     // ----------------------------------------------------
     // ARMADO DINÁMICO DEL PAQUETE
