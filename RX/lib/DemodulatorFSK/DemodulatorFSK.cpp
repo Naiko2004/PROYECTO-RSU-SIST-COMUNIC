@@ -28,24 +28,28 @@ volatile uint8_t current_byte = 0;
 volatile bool receiving = false;
 
 // ==========================================
-// RUTINA DE INTERRUPCIÓN (9600 Hz)
+// RUTINA DE INTERRUPCIÓN (Corregida y Filtrada)
 // ==========================================
 void IRAM_ATTR DemodulatorFSK::onADCInterrupt() {
     int adc_val = adc1_get_raw(ADC1_CHANNEL_6);
 
-    // 1. HISTÉRESIS FIJA Y SENSIBLE (Ideal para cable directo)
-    // El centro exacto es 2048. Usamos un margen de solo ±50 para no perder el tono alto.
-    if (adc_val > 2100) {
+    // 1. FILTRO SEGUIDOR DE CONTINUA DINÁMICO (Matemática corregida a base 64)
+    static int32_t dc_filter = 2048 << 6; // Inicializado en 2048 * 64
+    dc_filter = dc_filter - (dc_filter >> 6) + adc_val; 
+    int current_zero = dc_filter >> 6; // Ahora sí da ~2048 exactos en reposo
+
+    // 2. HISTÉRESIS ADAPTATIVA (±50 puntos sobre el centro real para matar ruido de fondo)
+    if (adc_val > current_zero + 50) {
         is_positive = true;
-    } else if (adc_val < 1996) {
+    } else if (adc_val < current_zero - 50) {
         is_positive = false;
     }
 
     samples_since_cross++;
 
-    // 2. DETECCIÓN DE CRUCE POR CERO
+    // 3. DETECCIÓN DE CRUCE POR CERO
     if (is_positive != was_positive) {
-        // En 19200 Hz: 1200Hz cruza cada 8 muestras, 2200Hz cada 4.3 muestras. 
+        // ZERO_CROSS_THRESHOLD = 6
         if (samples_since_cross > ZERO_CROSS_THRESHOLD) {
             current_bit = 1; // 1200 Hz (Mark)
         } else {
@@ -55,16 +59,16 @@ void IRAM_ATTR DemodulatorFSK::onADCInterrupt() {
     }
     was_positive = is_positive;
 
-    // 3. SILENCIADOR MÍNIMO (Evita leer basura si desconectan el cable)
-    if (samples_since_cross > 20) {
+    // 4. SQUELCH POR SOFTWARE (Frena el muestreo si no hay actividad FSK real)
+    if (samples_since_cross > 25) {
         current_bit = 1; 
     }
 
-    // 4. RECUPERACIÓN DE DATOS UART
+    // 5. MÁQUINA DE ESTADOS UART (Oversampling 16x)
     if (!receiving) {
-        if (current_bit == 0) { // Detectamos el Bit de Start
+        if (current_bit == 0) { // Bit de Start
             receiving = true;
-            sample_counter = 8; // Esperar al centro del bit (Oversampling 16x)
+            sample_counter = 8; 
             bit_position = 0;
             current_byte = 0;
         }

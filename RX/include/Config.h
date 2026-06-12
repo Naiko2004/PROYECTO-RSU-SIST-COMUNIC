@@ -10,10 +10,10 @@
 // ==========================================
 // PARÁMETROS DEL MÓDEM FSK
 // ==========================================
-#define BAUD_RATE    600
+#define BAUD_RATE    1200
 #define SAMPLE_RATE  19200 // Oversampling 8x (9600 Hz para 1200 bps)
 
 // Umbrales para cruce por cero en 9600 Hz
 // 1200 Hz (Mark)  = 8 muestras por ciclo (4 por semiciclo)
 // 2200 Hz (Space) = ~4.3 muestras por ciclo (2 por semiciclo)
-#define ZERO_CROSS_THRESHOLD 3 // Si el semiciclo dura más de 3 muestras, es Mark (1), sino Space (0)
+#define ZERO_CROSS_THRESHOLD 6 // Si el semiciclo dura más de 3 muestras, es Mark (1), sino Space (0)

@@ -64,8 +64,17 @@ void ModulatorFSK::begin() {
 }
 
 void ModulatorFSK::transmitBit(bool bitVal, uint64_t &next_time) {
+    // 1. ESPERAR a que llegue el momento exacto de transmitir ESTE bit
+    while (esp_timer_get_time() < next_time) { 
+        #if CONFIG_IDF_TARGET_ESP32
+        esp_rom_delay_us(1); // Pequeño yield para estabilidad del core
+        #endif
+    }
+    
+    // 2. CAMBIAR el tono para el bit actual justo ahora que su tiempo comenzó
     phase_increment = bitVal ? inc_mark : inc_space;
-    while (esp_timer_get_time() < next_time) { /* yield */ }
+    
+    // 3. CALCULAR el momento exacto donde debe terminar este bit
     next_time += (1000000 / BAUD_RATE);
 }
 
